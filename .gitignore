@@ -41,3 +41,4 @@ Thumbs.db
 vite.config.ts.timestamp-*
 .opencode
 .vercel
+.env*
