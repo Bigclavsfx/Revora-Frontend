@@ -7,7 +7,7 @@ track their portfolio and review an on-chain ledger of distributions.
 This repository is the web front end (React + Vite + TypeScript). It is a **demo UI**: all data is
 sample data generated in the browser, and no real wallets, funds or customers are involved.
 
-**Live site:** LIVE_URL_PLACEHOLDER
+**Live site:** https://revora-frontend.vercel.app
 
 ## Features
 
