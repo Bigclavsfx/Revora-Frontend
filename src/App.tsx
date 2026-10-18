@@ -16,6 +16,9 @@ import { notificationsMock } from "./components/Notifications/notificationsData"
 import { OfferingWizardSummary } from "./pages/OfferingWizardSummary";
 import { ScheduledExportsPage } from "./pages/ScheduledExportsPage";
 import { StartupDashboard } from "./pages/StartupDashboard";
+import { GovernanceProposalCreatePage } from "./pages/GovernanceProposalCreatePage";
+import { AdminAlertsInbox } from "./pages/AdminAlertsInbox";
+import { PayoutSchedule } from "./pages/PayoutSchedule";
 import { GovernanceVoteReceiptDemo } from "./pages/GovernanceVoteReceiptDemo";
 
 export function App() {
@@ -58,6 +61,8 @@ export function App() {
           {/* Investor routes */}
           <Route path="/investor/portal" element={<InvestorDiscovery />} />
           <Route path="/investor/portfolio" element={<InvestorPortfolioSummary />} />
+          <Route path="/investor/payouts" element={<PayoutSchedule />} />
+          <Route path="*" element={<Placeholder title="Page not found" />} />
           {/* Issue #139 – Virtualized Ledger Table */}
           <Route path="/investor/ledger" element={<LedgerDemoPage />} />
 
@@ -107,6 +112,10 @@ function Home() {
           Tokenized revenue-sharing infrastructure. Bridge the gap
           between visionaries and supporters with secure, on-chain execution.
         </p>
+        <p className="home-description" role="note" style={{ fontSize: '0.875rem', opacity: 0.8 }}>
+          This is a front-end demo. All data shown is sample data; no real
+          wallets, funds or customers are involved.
+        </p>
 
         <div className="home-grid">
           <section className="home-section glass-card">
@@ -122,7 +131,9 @@ function Home() {
               <li>
                 • <Link to="/startup/offering-registration" className="link-styled">Register a RevenueShare offering</Link>
               </li>
-              <li>• Track on-chain RevenueShare payouts</li>
+              <li>
+                • <Link to="/startup/governance/proposals/create" className="link-styled">Create a governance proposal</Link>
+              </li>
               <li>
                 • <Link to="/startup/governance/vote-receipt" className="link-styled">Governance vote receipt</Link>
               </li>
@@ -132,19 +143,28 @@ function Home() {
           <section className="home-section glass-card">
             <h2 className="home-section-title">Investor Portal</h2>
             <ul className="home-list">
-              <li>• Discover high-potential offerings</li>
+              <li>• <Link to="/investor/portal" className="link-styled">Discover offerings</Link></li>
               <li>• Invest using USDC on Stellar</li>
               <li>• <Link to="/investor/portfolio" className="link-styled">View portfolio summary</Link></li>
               <li>• <Link to="/investor/ledger" className="link-styled">Browse ledger entries</Link></li>
               <li>• <Link to="/investor/payouts" className="link-styled">View payout schedule</Link></li>
-              <li>• See real-time RevenueShare payouts</li>
+            </ul>
+          </section>
+
+          <section className="home-section glass-card">
+            <h2 className="home-section-title">Admin &amp; Account</h2>
+            <ul className="home-list">
+              <li>• <Link to="/admin/alerts" className="link-styled">Alerts inbox</Link></li>
+              <li>• <Link to="/admin/scheduled-exports" className="link-styled">Scheduled exports</Link></li>
+              <li>• <Link to="/settings/2fa/backup-codes" className="link-styled">2FA backup codes</Link></li>
+              <li>• <Link to="/recover-2fa" className="link-styled">2FA recovery</Link></li>
             </ul>
           </section>
         </div>
 
         <div className="home-actions" style={{ display: 'flex', gap: '1rem', flexDirection: 'column' }}>
           <Link to="/signup" className="btn btn-primary" style={{ width: '100%' }}>
-            Connect Stellar Wallet
+            Get started
           </Link>
           <div className="relative flex items-center w-full my-2">
             <div className="flex-grow border-t border-[rgba(148,163,184,0.1)]"></div>
@@ -177,7 +197,7 @@ function Placeholder({ title }: { title: string }) {
       <div className="placeholder-card glass-card">
         <h1 className="placeholder-title">{title}</h1>
         <p className="placeholder-text">
-          This dashboard is currently under construction.
+          We could not find that page.
         </p>
         <Link to="/" className="btn btn--secondary btn--md">
           Back to Home
