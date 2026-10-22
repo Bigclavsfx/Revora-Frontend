@@ -1,3 +1,30 @@
+import {
+  createBrowserRouter,
+  Link,
+  type RouteObject,
+  RouterProvider,
+} from "react-router-dom";
+import { Login } from "./pages/Login";
+import { Signup } from "./pages/Signup";
+import { ForgotPassword } from "./pages/ForgotPassword";
+import { InvestorDiscovery } from "./components/InvestorDiscovery";
+
+export const routes: RouteObject[] = [
+  { path: "/", element: <Home /> },
+  { path: "/login", element: <Login /> },
+  { path: "/signup", element: <Signup /> },
+  { path: "/forgot-password", element: <ForgotPassword /> },
+  {
+    path: "/startup/dashboard",
+    element: <Placeholder title="Startup Dashboard" />,
+  },
+  { path: "/investor/portal", element: <InvestorDiscovery /> },
+];
+
+const router = createBrowserRouter(routes);
+
+export function App() {
+  return <RouterProvider router={router} />;
 import type { MouseEvent } from "react";
 import { BrowserRouter as Router, Routes, Route, Link, Outlet } from "react-router-dom";
 import { Login } from "./pages/Login";
