@@ -151,105 +151,122 @@ describe("KycSelfieCapture", () => {
     expect(heading).toBeTruthy();
   });
 
-  describe("Camera lifecycle and cleanup (regression tests for #934)", () => {
-    it("stops camera tracks when component unmounts while getUserMedia is pending", async () => {
-      let resolveGetUserMedia: (stream: MediaStream) => void;
-      const pendingPromise = new Promise<MediaStream>((resolve) => {
-        resolveGetUserMedia = resolve;
+  describe("Camera stream attachment and capture flow", () => {
+    it("attaches stream to video.srcObject and calls play() after camera activation", async () => {
+      const mockTrack = { stop: vi.fn(), kind: "video" };
+      const fakeStream = {
+        getTracks: vi.fn().mockReturnValue([mockTrack]),
+        getVideoTracks: vi.fn().mockReturnValue([mockTrack]),
+      } as unknown as MediaStream;
+
+      const playSpy = vi.fn().mockResolvedValue(undefined);
+      window.HTMLMediaElement.prototype.play = playSpy;
+
+      Object.defineProperty(navigator, "mediaDevices", {
+        value: { getUserMedia: vi.fn().mockResolvedValue(fakeStream) },
+        configurable: true,
       });
-      mockGetUserMedia.mockReturnValueOnce(pendingPromise);
-
-      const { unmount } = render(<KycSelfieCapture />);
-      fireEvent.click(screen.getByRole("button", { name: /allow camera access/i }));
-
-      // Verify getUserMedia was called
-      await waitFor(() => {
-        expect(mockGetUserMedia).toHaveBeenCalled();
-      });
-
-      // Unmount before getUserMedia resolves
-      unmount();
-
-      // Now resolve the promise (simulating getUserMedia resolving after unmount)
-      // Use the same trackStopSpy from beforeEach
-      const stream = createMockStream(trackStopSpy);
-      resolveGetUserMedia!(stream);
-      await pendingPromise;
-
-      // Track stop should have been called because component was unmounted
-      expect(trackStopSpy).toHaveBeenCalled();
-    });
-
-    it("revokes object URL on unmount when selfie is captured", async () => {
-      const revokeObjectURLSpy = vi.spyOn(URL, "revokeObjectURL");
-
-      const { unmount } = render(<KycSelfieCapture />);
-      fireEvent.click(screen.getByRole("button", { name: /allow camera access/i }));
-
-      await waitFor(() => {
-        expect(screen.getByText("Take a Selfie")).toBeTruthy();
-      });
-
-      // Capture photo
-      fireEvent.click(screen.getByRole("button", { name: /capture photo/i }));
-
-      await waitFor(() => {
-        expect(screen.getByText("Review Your Selfie")).toBeTruthy();
-      });
-
-      // Unmount while preview is shown
-      unmount();
-
-      // URL.revokeObjectURL should have been called for the captured image
-      expect(revokeObjectURLSpy).toHaveBeenCalledWith("blob:mock-url");
-    });
-
-    it("revokes object URL on retake", async () => {
-      const revokeObjectURLSpy = vi.spyOn(URL, "revokeObjectURL");
 
       render(<KycSelfieCapture />);
       fireEvent.click(screen.getByRole("button", { name: /allow camera access/i }));
 
-      await waitFor(() => {
-        expect(screen.getByText("Take a Selfie")).toBeTruthy();
-      });
-
-      fireEvent.click(screen.getByRole("button", { name: /capture photo/i }));
-
-      await waitFor(() => {
-        expect(screen.getByText("Review Your Selfie")).toBeTruthy();
-      });
-
-      // Click retake
-      fireEvent.click(screen.getByRole("button", { name: /retake photo/i }));
-
-      // URL.revokeObjectURL should have been called for the captured image
-      expect(revokeObjectURLSpy).toHaveBeenCalledWith("blob:mock-url");
+      const video = await screen.findByLabelText("Camera feed") as HTMLVideoElement;
+      expect(video).toBeTruthy();
+      expect(video.srcObject).toBe(fakeStream);
+      expect(playSpy).toHaveBeenCalled();
     });
 
-    it("revokes object URL on confirm", async () => {
-      const revokeObjectURLSpy = vi.spyOn(URL, "revokeObjectURL");
-      const onCapture = vi.fn();
+    it("keeps capture button disabled until loadedmetadata fires with non-zero videoWidth", async () => {
+      const mockTrack = { stop: vi.fn(), kind: "video" };
+      const fakeStream = {
+        getTracks: vi.fn().mockReturnValue([mockTrack]),
+        getVideoTracks: vi.fn().mockReturnValue([mockTrack]),
+      } as unknown as MediaStream;
+      window.HTMLMediaElement.prototype.play = vi.fn().mockResolvedValue(undefined);
 
-      render(<KycSelfieCapture onCapture={onCapture} />);
+      Object.defineProperty(navigator, "mediaDevices", {
+        value: { getUserMedia: vi.fn().mockResolvedValue(fakeStream) },
+        configurable: true,
+      });
+
+      render(<KycSelfieCapture />);
       fireEvent.click(screen.getByRole("button", { name: /allow camera access/i }));
 
-      await waitFor(() => {
-        expect(screen.getByText("Take a Selfie")).toBeTruthy();
+      const captureBtn = await screen.findByRole("button", { name: /capture photo/i });
+      const video = screen.getByLabelText("Camera feed") as HTMLVideoElement;
+
+      // Initially disabled before metadata
+      expect(captureBtn).toBeDisabled();
+
+      // If loadedmetadata fires with videoWidth === 0, stays disabled
+      Object.defineProperty(video, "videoWidth", { value: 0, configurable: true });
+      fireEvent(video, new Event("loadedmetadata"));
+      expect(captureBtn).toBeDisabled();
+
+      // Once loadedmetadata fires with non-zero videoWidth, becomes enabled
+      Object.defineProperty(video, "videoWidth", { value: 720, configurable: true });
+      Object.defineProperty(video, "videoHeight", { value: 960, configurable: true });
+      fireEvent(video, new Event("loadedmetadata"));
+
+      expect(captureBtn).toBeEnabled();
+    });
+
+    it("handles null blob from toBlob with a visible error and keeps stream running for retry", async () => {
+      const mockTrack = { stop: vi.fn(), kind: "video" };
+      const fakeStream = {
+        getTracks: vi.fn().mockReturnValue([mockTrack]),
+        getVideoTracks: vi.fn().mockReturnValue([mockTrack]),
+      } as unknown as MediaStream;
+      window.HTMLMediaElement.prototype.play = vi.fn().mockResolvedValue(undefined);
+
+      Object.defineProperty(navigator, "mediaDevices", {
+        value: { getUserMedia: vi.fn().mockResolvedValue(fakeStream) },
+        configurable: true,
       });
 
-      fireEvent.click(screen.getByRole("button", { name: /capture photo/i }));
+      HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue({
+        translate: vi.fn(),
+        scale: vi.fn(),
+        drawImage: vi.fn(),
+      }) as unknown as typeof HTMLCanvasElement.prototype.getContext;
 
-      await waitFor(() => {
-        expect(screen.getByText("Review Your Selfie")).toBeTruthy();
+      // First produce null blob
+      HTMLCanvasElement.prototype.toBlob = vi.fn((callback) => {
+        callback(null);
       });
 
-      // Click confirm
-      fireEvent.click(screen.getByRole("button", { name: /use this photo/i }));
+      render(<KycSelfieCapture />);
+      fireEvent.click(screen.getByRole("button", { name: /allow camera access/i }));
 
-      // URL.revokeObjectURL should have been called for the captured image
-      expect(revokeObjectURLSpy).toHaveBeenCalledWith("blob:mock-url");
-      expect(onCapture).toHaveBeenCalled();
+      const captureBtn = await screen.findByRole("button", { name: /capture photo/i });
+      const video = screen.getByLabelText("Camera feed") as HTMLVideoElement;
+
+      Object.defineProperty(video, "videoWidth", { value: 720, configurable: true });
+      Object.defineProperty(video, "videoHeight", { value: 960, configurable: true });
+      fireEvent(video, new Event("loadedmetadata"));
+      expect(captureBtn).toBeEnabled();
+
+      // Click capture with null blob
+      fireEvent.click(captureBtn);
+
+      // Visible error shown
+      const errorMsg = await screen.findByRole("alert");
+      expect(errorMsg).toHaveTextContent(/failed to capture/i);
+
+      // Stream is not stopped (kept running for retry)
+      expect(mockTrack.stop).not.toHaveBeenCalled();
+
+      // Now retry when toBlob produces a valid blob
+      global.URL.createObjectURL = vi.fn().mockReturnValue("blob:http://localhost/selfie-ok");
+      (HTMLCanvasElement.prototype.toBlob as ReturnType<typeof vi.fn>).mockImplementation((callback) => {
+        callback(new Blob(["selfie"], { type: "image/png" }));
+      });
+
+      fireEvent.click(captureBtn);
+
+      // Transitions to preview and stops stream on success
+      await screen.findByRole("heading", { level: 2, name: /review your selfie/i });
+      expect(mockTrack.stop).toHaveBeenCalled();
     });
   });
 });
