@@ -1,5 +1,5 @@
 import '../components/TwoFactorSetup.css';
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Eye,
   EyeOff,
@@ -12,6 +12,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { Button } from '../components/Button';
+import { RegenerateCodesDialog } from '../components/RegenerateCodesDialog';
 import '../components/TwoFactorSetup.css';
 
 const CODES = [
@@ -23,12 +24,58 @@ const CODES = [
 
 const CODE_PLACEHOLDER = '••••••';
 
-const TwoFactorBackupCodesPage: React.FC = () => {
-  const [codes] = useState(CODES);
+interface TwoFactorBackupCodesPageProps {
+  /**
+   * Rotates the recovery codes server-side and resolves with the new set.
+   * When omitted, the Regenerate action is hidden.
+   */
+  onRegenerateCodes?: () => Promise<string[]>;
+}
+
+const TwoFactorBackupCodesPage: React.FC<TwoFactorBackupCodesPageProps> = ({ onRegenerateCodes }) => {
+  const [codes, setCodes] = useState(CODES);
   const [revealed, setRevealed] = useState<boolean[]>(() => new Array(CODES.length).fill(false));
   const [allRevealed, setAllRevealed] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [regenerateError, setRegenerateError] = useState<string | null>(null);
   const codesGridRef = useRef<HTMLDivElement>(null);
+  const regenerateTriggerRef = useRef<HTMLButtonElement>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const closeRegenerateDialog = () => {
+    setShowRegenerateConfirm(false);
+    setRegenerateError(null);
+    regenerateTriggerRef.current?.focus();
+  };
+
+  const confirmRegenerate = async () => {
+    if (!onRegenerateCodes || isRegenerating) return;
+    setIsRegenerating(true);
+    setRegenerateError(null);
+    try {
+      const newCodes = await onRegenerateCodes();
+      if (!isMountedRef.current) return;
+      setCodes(newCodes);
+      setRevealed(new Array(newCodes.length).fill(false));
+      setAllRevealed(false);
+      setIsCopied(false);
+      setIsRegenerating(false);
+      closeRegenerateDialog();
+    } catch {
+      if (!isMountedRef.current) return;
+      setIsRegenerating(false);
+      setRegenerateError('Could not regenerate recovery codes. Your existing codes are unchanged. Please try again.');
+    }
+  };
 
   const toggleReveal = useCallback((index: number) => {
     setRevealed(prev => {
@@ -119,9 +166,16 @@ const TwoFactorBackupCodesPage: React.FC = () => {
           <button onClick={printCodes} disabled={!revealedCount} className="btn-secondary text-sm">
             <Printer size={16} className="mr-1" /> Print
           </button>
-          <button onClick={() => {}} className="btn-secondary text-sm text-error">
-            <RotateCcw size={16} className="mr-1" /> Regenerate
-          </button>
+          {onRegenerateCodes && (
+            <button
+              ref={regenerateTriggerRef}
+              type="button"
+              onClick={() => setShowRegenerateConfirm(true)}
+              className="btn-secondary text-sm text-error"
+            >
+              <RotateCcw size={16} className="mr-1" /> Regenerate
+            </button>
+          )}
         </div>
       </div>
 
@@ -144,6 +198,15 @@ const TwoFactorBackupCodesPage: React.FC = () => {
           </button>
         ))}
       </div>
+
+      {onRegenerateCodes && showRegenerateConfirm && (
+        <RegenerateCodesDialog
+          isPending={isRegenerating}
+          error={regenerateError}
+          onConfirm={confirmRegenerate}
+          onCancel={() => { if (!isRegenerating) closeRegenerateDialog(); }}
+        />
+      )}
     </div>
   );
 };
